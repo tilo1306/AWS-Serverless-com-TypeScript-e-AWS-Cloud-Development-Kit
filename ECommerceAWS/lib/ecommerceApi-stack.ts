@@ -5,7 +5,8 @@ import * as cwLogs from 'aws-cdk-lib/aws-logs'
 import { Construct } from 'constructs'
 
 interface ECommerceApiStackProps extends cdk.StackProps{
-    productsFetchHandler: lambdaNodeJs.NodejsFunction
+    productsFetchHandler: lambdaNodeJs.NodejsFunction,
+    productsAdminHandler: lambdaNodeJs.NodejsFunction
 
 }
 
@@ -37,7 +38,17 @@ export class ECommerceApiStack extends cdk.Stack{
         const productsFetchIntegration = new apiGateway.LambdaIntegration(props.productsFetchHandler)
 
         const productsResource = api.root.addResource("products")
-
         productsResource.addMethod("GET", productsFetchIntegration)
+        
+        const productIdResource = productsResource.addResource("{id}")
+        productIdResource.addMethod("GET", productsFetchIntegration)
+
+        const productsAdminIntegration = new apiGateway.LambdaIntegration(props.productsAdminHandler)
+
+        productIdResource.addMethod("POST", productsAdminIntegration)
+
+        productIdResource.addMethod("PUT", productsAdminIntegration)
+
+        productIdResource.addMethod("DELETE", productsAdminIntegration)
     }
 }
