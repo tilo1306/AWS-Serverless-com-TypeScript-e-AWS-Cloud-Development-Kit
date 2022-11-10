@@ -1,3 +1,6 @@
+
+import { APIGatewayProxyEvent,APIGatewayProxyResult,Context } from "aws-lambda";
+
 export async function handler(event: APIGatewayProxyEvent, context: Context):Promise<APIGatewayProxyResult>{
     
     const lambdaRequestId = context.awsRequestId
@@ -32,11 +35,9 @@ export async function handler(event: APIGatewayProxyEvent, context: Context):Pro
             body: `DELETE /products/${productId}`
         }
       }
-      return {
-        statusCode: 400,
-        body: "Bad Request"
-      }
     }
-
-
+    return {
+      statusCode: 400,
+      body: "Bad Request"
+    }
 }
