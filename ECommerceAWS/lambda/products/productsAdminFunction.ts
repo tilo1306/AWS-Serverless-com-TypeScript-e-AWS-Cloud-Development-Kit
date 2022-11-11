@@ -14,20 +14,20 @@ export async function handler(event: APIGatewayProxyEvent, context: Context):Pro
     if(event.resource === "/products"){
         console.log("POST /products");
         return {
-            statusCode: 201,
-            body: "POST /products"
+            statusCode: 200,
+            body: `Post /products`
         }
         
-    } else if(  event.resource === "/products/{id}") {
+    } else if( event.resource === "/products/{id}") {
       const productId = event.pathParameters!.id as string
-      if (event.httpMethod === "PUT"){
+      if (method === "PUT"){
         console.log(`PUT /products/${productId}`);
         return {
             statusCode: 200,
             body: `PUT /products/${productId}`
         }
 
-      }else if (event.httpMethod === "DELETE"){
+      }else if (method === "DELETE"){
 
          console.log(`DELETE /products/${productId}`);
         return {
