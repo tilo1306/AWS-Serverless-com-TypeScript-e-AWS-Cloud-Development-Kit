@@ -45,7 +45,7 @@ export class ECommerceApiStack extends cdk.Stack{
 
         const productsAdminIntegration = new apiGateway.LambdaIntegration(props.productsAdminHandler)
 
-        productIdResource.addMethod("POST", productsAdminIntegration)
+        productsResource.addMethod("POST", productsAdminIntegration)
 
         productIdResource.addMethod("PUT", productsAdminIntegration)
 
