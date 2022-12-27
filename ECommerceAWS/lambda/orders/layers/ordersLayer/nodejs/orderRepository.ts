@@ -8,7 +8,7 @@ export interface IOrderProduct {
 
 export interface IOrder {
   pk: string;
-  sk: string;
+  sk?: string;
   createdAt?: number;
   shipping: {
     type: "URGENT" | "ECONOMIC";
