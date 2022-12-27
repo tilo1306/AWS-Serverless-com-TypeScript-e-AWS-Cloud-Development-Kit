@@ -31,14 +31,74 @@ export class OrderRepository {
   }
 
   async createOrder(order: IOrder): Promise<IOrder> {
-    order.sk = uuid();
-    order.createdAt = Date.now();
+    const ordemValue = order;
+    ordemValue.sk = uuid();
+    ordemValue.createdAt = Date.now();
     await this.ddbClient
       .put({
         TableName: this.ordersDdb,
         Item: order,
       })
       .promise();
-    return order;
+    return ordemValue;
+  }
+
+  async getallOrders(): Promise<IOrder[]> {
+    const data = await this.ddbClient
+      .scan({
+        TableName: this.ordersDdb,
+      })
+      .promise();
+    return data.Items as IOrder[];
+  }
+
+  async getOrdersByEmail(email: string): Promise<IOrder[]> {
+    const data = await this.ddbClient
+      .query({
+        TableName: this.ordersDdb,
+        KeyConditionExpression: "pk = :email",
+        ExpressionAttributeValues: {
+          ":email": email,
+        },
+      })
+      .promise();
+    return data.Items as IOrder[];
+  }
+
+  async getOrder(email: string, orderId: string): Promise<IOrder> {
+    const data = await this.ddbClient
+      .get({
+        TableName: this.ordersDdb,
+        Key: {
+          pk: email,
+          sk: orderId,
+        },
+      })
+      .promise();
+
+    if (!data.Item) {
+      throw new Error("Order Not fount");
+    }
+
+    return data.Item as IOrder;
+  }
+
+  async deleteOrder(email: string, orderId: string): Promise<IOrder> {
+    const data = await this.ddbClient
+      .delete({
+        TableName: this.ordersDdb,
+        Key: {
+          pk: email,
+          sk: orderId,
+        },
+        ReturnValues: "ALL_OLD",
+      })
+      .promise();
+
+    if (!data.Attributes) {
+      throw new Error("Order not found");
+    }
+
+    return data.Attributes as IOrder;
   }
 }

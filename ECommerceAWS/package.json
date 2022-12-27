@@ -33,11 +33,12 @@
     "typescript": "~3.9.7"
   },
   "dependencies": {
+    "@types/aws-lambda": "^8.10.109",
     "aws-cdk-lib": "2.49.0",
+    "aws-sdk": "^2.1244.0",
     "aws-xray-sdk": "^3.4.0",
     "constructs": "^10.0.0",
     "source-map-support": "^0.5.21",
-    "@types/aws-lambda": "^8.10.109",
-    "aws-sdk": "^2.1244.0"
+    "uuid": "^9.0.0"
   }
 }
