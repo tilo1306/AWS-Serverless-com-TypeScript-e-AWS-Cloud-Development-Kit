@@ -37,6 +37,13 @@
   },
   "exclude": [
     "node_modules",
-    "cdk.out"
+    "cdk.out",
+    "/node_modules/",
+    ".serverless/**/*",
+    ".webpack/**/*",
+    "_warmup/**/*",
+    "vscode/**/*",
+    "lib/**/*",
+    "tests"
   ]
 }
