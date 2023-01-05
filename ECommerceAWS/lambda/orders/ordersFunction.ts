@@ -24,12 +24,12 @@ import { ProductRepository, IProduct } from "/opt/nodejs/productsLayer";
 
 AWSXray.captureAWS(require.resolve("aws-sdk"));
 const ordersDdb = process.env.ORDERS_DDB!;
-const porductsDdb = process.env.PRODUCTS_DDB!;
+const productsDdb = process.env.PRODUCTS_DDB!;
 
 const ddbClient = new DynamoDB.DocumentClient();
 
 const orderRepository = new OrderRepository(ddbClient, ordersDdb);
-const productRepository = new ProductRepository(ddbClient, porductsDdb);
+const productRepository = new ProductRepository(ddbClient, productsDdb);
 
 export async function handler(
   event: APIGatewayProxyEvent,
@@ -63,12 +63,13 @@ export async function handler(
               body: (<Error>error).message,
             };
           }
+        } else {
+          const orders = await orderRepository.getOrdersByEmail(email);
+          return {
+            statusCode: 200,
+            body: JSON.stringify(orders.map(convertToOrderResponse)),
+          };
         }
-        const orders = await orderRepository.getOrdersByEmail(email);
-        return {
-          statusCode: 200,
-          body: JSON.stringify(orders.map(convertToOrderResponse)),
-        };
       }
     } else {
       const orders = await orderRepository.getallOrders();
@@ -89,12 +90,12 @@ export async function handler(
       const orderCreated = await orderRepository.createOrder(order);
 
       return {
-        statusCode: 21,
+        statusCode: 201,
         body: JSON.stringify(convertToOrderResponse(orderCreated)),
       };
     }
     return {
-      statusCode: 44,
+      statusCode: 404,
       body: "Some product was not found",
     };
   } else if (method === "DELETE") {
@@ -161,7 +162,7 @@ function buildOrder(orderRequest: IOrderRequest, products: IProduct[]): IOrder {
   });
 
   const order: IOrder = {
-    pk: orderRequest.emai,
+    pk: orderRequest.email,
     billing: {
       paymet: orderRequest.payment,
       totalPrice,
