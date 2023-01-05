@@ -49,7 +49,7 @@ const ordesAppLayersStack = new OrdersAppLayersStack(app, "OrdersAppLayers", {
   env,
 });
 
-const ordersAppStack = new OrdersAppStack(app, "ordersApp", {
+const ordersAppStack = new OrdersAppStack(app, "OrdersApp", {
   tags,
   env,
   productsDdb: productsAppStack.productsDdb,

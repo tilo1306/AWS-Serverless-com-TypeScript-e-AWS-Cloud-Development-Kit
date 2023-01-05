@@ -48,7 +48,7 @@ export class OrdersAppStack extends cdk.Stack {
     );
     const ordersApiLayer = lambda.LayerVersion.fromLayerVersionArn(
       this,
-      "OrdersLayerVersionArn",
+      "OrdersApiLayerVersionArn",
       ordersApiLayerArn
     );
 
@@ -68,13 +68,13 @@ export class OrdersAppStack extends cdk.Stack {
       "OrdersFunction",
       {
         functionName: "OrdersFunction",
-        entry: "lambdaordersordersFunction.ts",
+        entry: "lambda/orders/ordersFunction.ts",
         handler: "handle",
         memorySize: 128,
         timeout: cdk.Duration.seconds(2),
         bundling: {
           minify: true,
-          sourceMap: true,
+          sourceMap: false,
         },
         environment: {
           PRODUCTS_DDB: props.productsDdb.tableName,

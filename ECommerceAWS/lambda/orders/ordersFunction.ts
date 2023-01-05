@@ -18,8 +18,7 @@ import {
   IOrderResponse,
   PaymentType,
   ShippingType,
-} from "./ordersApiLayer/nodejs/orderApi";
-
+} from "/opt/nodejs/ordersApiLayer";
 import { OrderRepository, IOrder } from "/opt/nodejs/ordersLayer";
 import { ProductRepository, IProduct } from "/opt/nodejs/productsLayer";
 
