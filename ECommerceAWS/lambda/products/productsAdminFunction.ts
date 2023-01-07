@@ -1,3 +1,7 @@
+/* eslint-disable no-use-before-define */
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
+/* eslint-disable @typescript-eslint/no-var-requires */
+/* eslint-disable import/no-absolute-path */
 import {
   APIGatewayProxyEvent,
   APIGatewayProxyResult,
@@ -6,8 +10,11 @@ import {
 import { DynamoDB, Lambda } from "aws-sdk";
 import * as AWSXRay from "aws-xray-sdk";
 
-import { ProductEvent, ProductEventType } from "/opt/nodejs/productEventsLayer";
-import { Product, ProductRepository } from "/opt/nodejs/productsLayer";
+import {
+  IProductEvent,
+  ProductEventType,
+} from "/opt/nodejs/productEventsLayer";
+import { IProduct, ProductRepository } from "/opt/nodejs/productsLayer";
 
 AWSXRay.captureAWS(require("aws-sdk"));
 
@@ -24,9 +31,6 @@ export async function handler(
   context: Context
 ): Promise<APIGatewayProxyResult> {
   const lambdaRequestId = context.awsRequestId;
-
-  const method = event.httpMethod;
-
   const apiRequestId = event.requestContext.requestId;
 
   console.log(
@@ -35,16 +39,15 @@ export async function handler(
 
   if (event.resource === "/products") {
     console.log("POST /products");
-    const product = (await JSON.parse(event.body!)) as Product;
+    const product = JSON.parse(event.body!) as IProduct;
     const productCreated = await productRepository.create(product);
 
     const response = await sendProductEvent(
       productCreated,
       ProductEventType.CREATED,
-      "dougrilhos@doug.com.br",
+      "matilde@siecola.com.br",
       lambdaRequestId
     );
-
     console.log(response);
 
     return {
@@ -54,23 +57,23 @@ export async function handler(
   }
   if (event.resource === "/products/{id}") {
     const productId = event.pathParameters!.id as string;
-    if (method === "PUT") {
+    if (event.httpMethod === "PUT") {
       console.log(`PUT /products/${productId}`);
-      const product = JSON.parse(event.body!) as Product;
-
+      const product = JSON.parse(event.body!) as IProduct;
       try {
         const productUpdated = await productRepository.updateProduct(
           productId,
           product
         );
+
         const response = await sendProductEvent(
           productUpdated,
           ProductEventType.UPDATED,
-          "dougrilhos1@doug.com.br",
+          "doralice@siecola.com.br",
           lambdaRequestId
         );
-
         console.log(response);
+
         return {
           statusCode: 200,
           body: JSON.stringify(productUpdated),
@@ -81,7 +84,7 @@ export async function handler(
           body: "Product not found",
         };
       }
-    } else if (method === "DELETE") {
+    } else if (event.httpMethod === "DELETE") {
       console.log(`DELETE /products/${productId}`);
       try {
         const product = await productRepository.deleteProduct(productId);
@@ -89,7 +92,7 @@ export async function handler(
         const response = await sendProductEvent(
           product,
           ProductEventType.DELETED,
-          "dougrilhos1@doug.com.br",
+          "hannah@siecola.com.br",
           lambdaRequestId
         );
         console.log(response);
@@ -107,19 +110,20 @@ export async function handler(
       }
     }
   }
+
   return {
     statusCode: 400,
-    body: "Bad Request",
+    body: "Bad request",
   };
 }
 
 function sendProductEvent(
-  product: Product,
+  product: IProduct,
   eventType: ProductEventType,
   email: string,
   lambdaRequestId: string
 ) {
-  const event: ProductEvent = {
+  const event: IProductEvent = {
     email,
     eventType,
     productCode: product.code,

@@ -41,7 +41,7 @@ export class OrdersAppStack extends cdk.Stack {
       ordersLayerArn
     );
 
-    // Orders Api Layer
+    // Orders API Layer
     const ordersApiLayerArn = ssm.StringParameter.valueForStringParameter(
       this,
       "OrdersApiLayerVersionArn"
@@ -69,7 +69,7 @@ export class OrdersAppStack extends cdk.Stack {
       {
         functionName: "OrdersFunction",
         entry: "lambda/orders/ordersFunction.ts",
-        handler: "handle",
+        handler: "handler",
         memorySize: 128,
         timeout: cdk.Duration.seconds(2),
         bundling: {

@@ -36,7 +36,7 @@
       ],
       "/opt/nodejs/ordersApiLayer": [
         "lambda/orders/layers/ordersApiLayer/nodejs/orderApi"
-      ],
+      ]
     }
   },
   "exclude": [

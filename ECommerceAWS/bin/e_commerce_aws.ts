@@ -6,8 +6,8 @@ import { ECommerceApiStack } from "../lib/ecommerceApi-stack";
 import { EventsDdbStack } from "../lib/eventsDdb-stack";
 import { OrdersAppStack } from "../lib/ordersApp-stack";
 import { OrdersAppLayersStack } from "../lib/ordersAppLayers-stack";
-import { ProductsAppLayersStack } from "../lib/productAppLayers-stack";
 import { ProductsAppStack } from "../lib/productsApp-stack";
+import { ProductsAppLayersStack } from "../lib/productsAppLayers-stack";
 
 const app = new cdk.App();
 

@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
+/* eslint-disable no-param-reassign */
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import { v4 as uuid } from "uuid";
 
@@ -28,6 +29,7 @@ export class ProductRepository {
       .promise();
     return data.Items as IProduct[];
   }
+
   async getProductById(productId: string): Promise<IProduct> {
     const data = await this.ddbClient
       .get({
@@ -37,7 +39,6 @@ export class ProductRepository {
         },
       })
       .promise();
-
     if (data.Item) {
       return data.Item as IProduct;
     }
@@ -45,14 +46,14 @@ export class ProductRepository {
   }
 
   async getProductsByIds(productIds: string[]): Promise<IProduct[]> {
-    const keys: {
-      id: string;
-    }[] = [];
+    const keys: { id: string }[] = [];
+
     productIds.forEach((productId) => {
       keys.push({
         id: productId,
       });
     });
+
     const data = await this.ddbClient
       .batchGet({
         RequestItems: {
@@ -66,15 +67,14 @@ export class ProductRepository {
   }
 
   async create(product: IProduct): Promise<IProduct> {
-    const data = product;
-    data.id = uuid();
+    product.id = uuid();
     await this.ddbClient
       .put({
         TableName: this.productsDdb,
         Item: product,
       })
       .promise();
-    return data;
+    return product;
   }
 
   async deleteProduct(productId: string): Promise<IProduct> {

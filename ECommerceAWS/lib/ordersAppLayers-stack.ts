@@ -8,7 +8,7 @@ export class OrdersAppLayersStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const orderLayer = new lambda.LayerVersion(this, "OrdersLayer", {
+    const ordersLayer = new lambda.LayerVersion(this, "OrdersLayer", {
       code: lambda.Code.fromAsset("lambda/orders/layers/ordersLayer"),
       compatibleRuntimes: [lambda.Runtime.NODEJS_14_X],
       layerVersionName: "OrdersLayer",
@@ -17,10 +17,10 @@ export class OrdersAppLayersStack extends cdk.Stack {
 
     new ssm.StringParameter(this, "OrdersLayerVersionArn", {
       parameterName: "OrdersLayerVersionArn",
-      stringValue: orderLayer.layerVersionArn,
+      stringValue: ordersLayer.layerVersionArn,
     });
 
-    const orderApiLayer = new lambda.LayerVersion(this, "OrdersApiLayer", {
+    const ordersApiLayer = new lambda.LayerVersion(this, "OrdersApiLayer", {
       code: lambda.Code.fromAsset("lambda/orders/layers/ordersApiLayer"),
       compatibleRuntimes: [lambda.Runtime.NODEJS_14_X],
       layerVersionName: "OrdersApiLayer",
@@ -29,7 +29,7 @@ export class OrdersAppLayersStack extends cdk.Stack {
 
     new ssm.StringParameter(this, "OrdersApiLayerVersionArn", {
       parameterName: "OrdersApiLayerVersionArn",
-      stringValue: orderApiLayer.layerVersionArn,
+      stringValue: ordersApiLayer.layerVersionArn,
     });
   }
 }

@@ -1,7 +1,6 @@
 /* eslint-disable no-use-before-define */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-/* eslint-disable import/no-unresolved */
-/* eslint-disable import/extensions */
+/* eslint-disable @typescript-eslint/no-var-requires */
 /* eslint-disable import/no-absolute-path */
 import {
   APIGatewayProxyEvent,
@@ -9,20 +8,21 @@ import {
   Context,
 } from "aws-lambda";
 import { DynamoDB } from "aws-sdk";
-import * as AWSXray from "aws-xray-sdk";
+import * as AWSXRay from "aws-xray-sdk";
 
 import {
-  CarrierType,
+  ICarrierType,
   IOrderProductResponse,
   IOrderRequest,
   IOrderResponse,
-  PaymentType,
-  ShippingType,
+  IPaymentType,
+  IShippingType,
 } from "/opt/nodejs/ordersApiLayer";
-import { OrderRepository, IOrder } from "/opt/nodejs/ordersLayer";
-import { ProductRepository, IProduct } from "/opt/nodejs/productsLayer";
+import { IOrder, OrderRepository } from "/opt/nodejs/ordersLayer";
+import { IProduct, ProductRepository } from "/opt/nodejs/productsLayer";
 
-AWSXray.captureAWS(require.resolve("aws-sdk"));
+AWSXRay.captureAWS(require("aws-sdk"));
+
 const ordersDdb = process.env.ORDERS_DDB!;
 const productsDdb = process.env.PRODUCTS_DDB!;
 
@@ -40,16 +40,16 @@ export async function handler(
   const lambdaRequestId = context.awsRequestId;
 
   console.log(
-    `API Gateway RequestId: ${apiRequestId} - LambdaRequestId: ${lambdaRequestId}`
+    `API Gateway RequestId: ${apiRequestId} - LambdaRequestId :${lambdaRequestId}`
   );
 
   if (method === "GET") {
     if (event.queryStringParameters) {
       const { email } = event.queryStringParameters!;
       const { orderId } = event.queryStringParameters!;
-
       if (email) {
         if (orderId) {
+          // Get one order from an user
           try {
             const order = await orderRepository.getOrder(email, orderId);
             return {
@@ -64,6 +64,7 @@ export async function handler(
             };
           }
         } else {
+          // Get all orders from an user
           const orders = await orderRepository.getOrdersByEmail(email);
           return {
             statusCode: 200,
@@ -72,20 +73,20 @@ export async function handler(
         }
       }
     } else {
-      const orders = await orderRepository.getallOrders();
+      // Get all orders
+      const orders = await orderRepository.getAllOrders();
       return {
         statusCode: 200,
         body: JSON.stringify(orders.map(convertToOrderResponse)),
       };
     }
   } else if (method === "POST") {
+    console.log("POST /orders");
     const orderRequest = JSON.parse(event.body!) as IOrderRequest;
-
     const products = await productRepository.getProductsByIds(
-      orderRequest.productId
+      orderRequest.productIds
     );
-
-    if (products.length === orderRequest.productId.length) {
+    if (products.length === orderRequest.productIds.length) {
       const order = buildOrder(orderRequest, products);
       const orderCreated = await orderRepository.createOrder(order);
 
@@ -99,6 +100,7 @@ export async function handler(
       body: "Some product was not found",
     };
   } else if (method === "DELETE") {
+    console.log("DELETE /orders");
     const email = event.queryStringParameters!.email!;
     const orderId = event.queryStringParameters!.orderId!;
 
@@ -125,7 +127,6 @@ export async function handler(
 
 function convertToOrderResponse(order: IOrder): IOrderResponse {
   const orderProducts: IOrderProductResponse[] = [];
-
   order.products.forEach((product) => {
     orderProducts.push({
       code: product.code,
@@ -138,14 +139,15 @@ function convertToOrderResponse(order: IOrder): IOrderResponse {
     createdAt: order.createdAt!,
     products: orderProducts,
     billing: {
-      payment: order.billing.paymet as PaymentType,
+      payment: order.billing.payment as IPaymentType,
       totalPrice: order.billing.totalPrice,
     },
     shipping: {
-      type: order.shipping.type as ShippingType,
-      carrier: order.shipping.carrier as CarrierType,
+      type: order.shipping.type as IShippingType,
+      carrier: order.shipping.carrier as ICarrierType,
     },
   };
+
   return orderResponse;
 }
 
@@ -160,11 +162,10 @@ function buildOrder(orderRequest: IOrderRequest, products: IProduct[]): IOrder {
       price: product.price,
     });
   });
-
   const order: IOrder = {
     pk: orderRequest.email,
     billing: {
-      paymet: orderRequest.payment,
+      payment: orderRequest.payment,
       totalPrice,
     },
     shipping: {

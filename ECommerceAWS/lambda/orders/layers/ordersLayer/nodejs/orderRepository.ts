@@ -1,3 +1,4 @@
+/* eslint-disable no-param-reassign */
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import { v4 as uuid } from "uuid";
 
@@ -15,7 +16,7 @@ export interface IOrder {
     carrier: "CORREIOS" | "FEDEX";
   };
   billing: {
-    paymet: "CASH" | "DEBIT_CARD" | "CREDIT_CARD";
+    payment: "CASH" | "DEBIT_CARD" | "CREDIT_CARD";
     totalPrice: number;
   };
   products: IOrderProduct[];
@@ -31,19 +32,18 @@ export class OrderRepository {
   }
 
   async createOrder(order: IOrder): Promise<IOrder> {
-    const ordemValue = order;
-    ordemValue.sk = uuid();
-    ordemValue.createdAt = Date.now();
+    order.sk = uuid();
+    order.createdAt = Date.now();
     await this.ddbClient
       .put({
         TableName: this.ordersDdb,
         Item: order,
       })
       .promise();
-    return ordemValue;
+    return order;
   }
 
-  async getallOrders(): Promise<IOrder[]> {
+  async getAllOrders(): Promise<IOrder[]> {
     const data = await this.ddbClient
       .scan({
         TableName: this.ordersDdb,
@@ -75,12 +75,10 @@ export class OrderRepository {
         },
       })
       .promise();
-
-    if (!data.Item) {
-      throw new Error("Order Not fount");
+    if (data.Item) {
+      return data.Item as IOrder;
     }
-
-    return data.Item as IOrder;
+    throw new Error("Order not found");
   }
 
   async deleteOrder(email: string, orderId: string): Promise<IOrder> {
@@ -94,11 +92,9 @@ export class OrderRepository {
         ReturnValues: "ALL_OLD",
       })
       .promise();
-
-    if (!data.Attributes) {
-      throw new Error("Order not found");
+    if (data.Attributes) {
+      return data.Attributes as IOrder;
     }
-
-    return data.Attributes as IOrder;
+    throw new Error("Order not found");
   }
 }

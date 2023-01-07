@@ -46,15 +46,14 @@ export class ECommerceApiStack extends cdk.Stack {
       props.ordersHandler
     );
 
-    // resource -orders
+    // resource - /orders
     const ordersResource = api.root.addResource("orders");
 
     // GET /orders
-    // GET /ordersemail=doug@doug.com.br
-    // GET /ordersemail=doug@doug.com.br&orderId=123
+    // GET /orders?email=matilde@siecola.com.br
+    // GET /orders?email=matilde@siecola.com.br&orderId=123
     ordersResource.addMethod("GET", ordersIntegration);
 
-    // DELETE /ordersemail=doug@doug.com.br&orderId=123
     const orderDeletionValidator = new apigateway.RequestValidator(
       this,
       "OrderDeletionValidator",
@@ -64,6 +63,8 @@ export class ECommerceApiStack extends cdk.Stack {
         validateRequestParameters: true,
       }
     );
+
+    // DELETE /orders?email=matilde@siecola.com.br&orderId=123
     ordersResource.addMethod("DELETE", ordersIntegration, {
       requestParameters: {
         "method.request.querystring.email": true,
@@ -75,6 +76,7 @@ export class ECommerceApiStack extends cdk.Stack {
     // POST /orders
     ordersResource.addMethod("POST", ordersIntegration);
   }
+
   private createProductsService(
     props: IECommerceApiStackProps,
     api: apigateway.RestApi
