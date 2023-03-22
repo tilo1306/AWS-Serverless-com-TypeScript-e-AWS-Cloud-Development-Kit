@@ -7,16 +7,28 @@ import {
   APIGatewayProxyResult,
   Context,
 } from "aws-lambda";
-import { DynamoDB } from "aws-sdk";
-import * as AWSXRay from "aws-xray-sdk";
-
 import {
-  ICarrierType,
+  CognitoIdentityServiceProvider,
+  DynamoDB,
+  EventBridge,
+  SNS,
+} from "aws-sdk";
+import * as AWSXRay from "aws-xray-sdk";
+import { v4 as uuid } from "uuid";
+
+import { AuthInfoService } from "/opt/nodejs/authUserInfo";
+import {
+  IOrderEvent,
+  OrderEventType,
+  IEnvelope,
+} from "/opt/nodejs/orderEventsLayer";
+import {
+  CarrierType,
   IOrderProductResponse,
   IOrderRequest,
   IOrderResponse,
-  IPaymentType,
-  IShippingType,
+  PaymentType,
+  ShippingType,
 } from "/opt/nodejs/ordersApiLayer";
 import { IOrder, OrderRepository } from "/opt/nodejs/ordersLayer";
 import { IProduct, ProductRepository } from "/opt/nodejs/productsLayer";
@@ -25,76 +37,146 @@ AWSXRay.captureAWS(require("aws-sdk"));
 
 const ordersDdb = process.env.ORDERS_DDB!;
 const productsDdb = process.env.PRODUCTS_DDB!;
+const orderEventsTopicArn = process.env.ORDER_EVENTS_TOPIC_ARN!;
+const auditBusName = process.env.AUDIT_BUS_NAME!;
 
 const ddbClient = new DynamoDB.DocumentClient();
+const snsClient = new SNS();
+const eventBridgeClient = new EventBridge();
+const cognitoIdentityServiceProvider = new CognitoIdentityServiceProvider();
 
 const orderRepository = new OrderRepository(ddbClient, ordersDdb);
 const productRepository = new ProductRepository(ddbClient, productsDdb);
 
+const authInfoService = new AuthInfoService(cognitoIdentityServiceProvider);
+
 export async function handler(
   event: APIGatewayProxyEvent,
-  context: Context
+  context: Context,
 ): Promise<APIGatewayProxyResult> {
   const method = event.httpMethod;
   const apiRequestId = event.requestContext.requestId;
   const lambdaRequestId = context.awsRequestId;
 
   console.log(
-    `API Gateway RequestId: ${apiRequestId} - LambdaRequestId :${lambdaRequestId}`
+    `API Gateway RequestId: ${apiRequestId} - LambdaRequestId :${lambdaRequestId}`,
+  );
+
+  const isAdmin = authInfoService.isAdminUser(event.requestContext.authorizer);
+  const authenticatedUser = await authInfoService.getUserInfo(
+    event.requestContext.authorizer,
   );
 
   if (method === "GET") {
     if (event.queryStringParameters) {
       const { email } = event.queryStringParameters!;
       const { orderId } = event.queryStringParameters!;
-      if (email) {
-        if (orderId) {
-          // Get one order from an user
-          try {
-            const order = await orderRepository.getOrder(email, orderId);
+
+      if (isAdmin || email === authenticatedUser) {
+        if (email) {
+          if (orderId) {
+            // Get one order from an user
+            try {
+              const order = await orderRepository.getOrder(email, orderId);
+              return {
+                statusCode: 200,
+                body: JSON.stringify(convertToOrderResponse(order)),
+              };
+            } catch (error) {
+              console.log((<Error>error).message);
+              return {
+                statusCode: 404,
+                body: (<Error>error).message,
+              };
+            }
+          } else {
+            // Get all orders from an user
+            const orders = await orderRepository.getOrdersByEmail(email);
             return {
               statusCode: 200,
-              body: JSON.stringify(convertToOrderResponse(order)),
-            };
-          } catch (error) {
-            console.log((<Error>error).message);
-            return {
-              statusCode: 404,
-              body: (<Error>error).message,
+              body: JSON.stringify(orders.map(convertToOrderResponse)),
             };
           }
-        } else {
-          // Get all orders from an user
-          const orders = await orderRepository.getOrdersByEmail(email);
-          return {
-            statusCode: 200,
-            body: JSON.stringify(orders.map(convertToOrderResponse)),
-          };
         }
+      } else {
+        return {
+          statusCode: 403,
+          body: `You don't have permission to access this operation`,
+        };
       }
     } else {
       // Get all orders
-      const orders = await orderRepository.getAllOrders();
+      if (isAdmin) {
+        const orders = await orderRepository.getAllOrders();
+        return {
+          statusCode: 200,
+          body: JSON.stringify(orders.map(convertToOrderResponse)),
+        };
+      }
       return {
-        statusCode: 200,
-        body: JSON.stringify(orders.map(convertToOrderResponse)),
+        statusCode: 403,
+        body: `You don't have permission to access this operation`,
       };
     }
   } else if (method === "POST") {
     console.log("POST /orders");
     const orderRequest = JSON.parse(event.body!) as IOrderRequest;
+
+    if (!isAdmin) {
+      orderRequest.email = authenticatedUser;
+    } else if (orderRequest.email === null) {
+      return {
+        statusCode: 400,
+        body: "Missing the order owner email",
+      };
+    }
     const products = await productRepository.getProductsByIds(
-      orderRequest.productIds
+      orderRequest.productIds,
     );
     if (products.length === orderRequest.productIds.length) {
       const order = buildOrder(orderRequest, products);
-      const orderCreated = await orderRepository.createOrder(order);
+      const orderCreatedPromise = orderRepository.createOrder(order);
 
+      const eventResultPromise = sendOrderEvent(
+        order,
+        OrderEventType.CREATED,
+        lambdaRequestId,
+      );
+
+      const results = await Promise.all([
+        orderCreatedPromise,
+        eventResultPromise,
+      ]);
+
+      console.log(
+        `Order created event sent - OrderId: ${order.sk} 
+            - MessageId: ${results[1].MessageId}`,
+      );
       return {
         statusCode: 201,
-        body: JSON.stringify(convertToOrderResponse(orderCreated)),
+        body: JSON.stringify(convertToOrderResponse(order)),
       };
     }
+    console.error("Some product was not found");
+
+    const result = await eventBridgeClient
+      .putEvents({
+        Entries: [
+          {
+            Source: "app.order",
+            EventBusName: auditBusName,
+            DetailType: "order",
+            Time: new Date(),
+            Detail: JSON.stringify({
+              reason: "PRODUCT_NOT_FOUND",
+              orderRequest,
+            }),
+          },
+        ],
+      })
+      .promise();
+    console.log(result);
+
     return {
       statusCode: 404,
       body: "Some product was not found",
@@ -104,17 +186,35 @@ export async function handler(
     const email = event.queryStringParameters!.email!;
     const orderId = event.queryStringParameters!.orderId!;
 
-    try {
-      const orderDelete = await orderRepository.deleteOrder(email, orderId);
+    if (isAdmin || email === authenticatedUser) {
+      try {
+        const orderDelete = await orderRepository.deleteOrder(email, orderId);
+
+        const eventResult = await sendOrderEvent(
+          orderDelete,
+          OrderEventType.DELETED,
+          lambdaRequestId,
+        );
+        console.log(
+          `Order deleted event sent - OrderId: ${orderDelete.sk} 
+               - MessageId: ${eventResult.MessageId}`,
+        );
+
+        return {
+          statusCode: 200,
+          body: JSON.stringify(convertToOrderResponse(orderDelete)),
+        };
+      } catch (error) {
+        console.log((<Error>error).message);
+        return {
+          statusCode: 404,
+          body: (<Error>error).message,
+        };
+      }
+    } else {
       return {
-        statusCode: 200,
-        body: JSON.stringify(convertToOrderResponse(orderDelete)),
-      };
-    } catch (error) {
-      console.log((<Error>error).message);
-      return {
-        statusCode: 404,
-        body: (<Error>error).message,
+        statusCode: 403,
+        body: `You don't have permission to access this operation`,
       };
     }
   }
@@ -125,9 +225,46 @@ export async function handler(
   };
 }
 
+function sendOrderEvent(
+  order: IOrder,
+  eventType: OrderEventType,
+  lambdaRequestId: string,
+) {
+  const productCodes: string[] = [];
+  order.products?.forEach((product) => {
+    productCodes.push(product.code);
+  });
+  const orderEvent: IOrderEvent = {
+    email: order.pk,
+    orderId: order.sk!,
+    billing: order.billing,
+    shipping: order.shipping,
+    requestId: lambdaRequestId,
+    productCodes,
+  };
+
+  const envelope: IEnvelope = {
+    eventType,
+    data: JSON.stringify(orderEvent),
+  };
+
+  return snsClient
+    .publish({
+      TopicArn: orderEventsTopicArn,
+      Message: JSON.stringify(envelope),
+      MessageAttributes: {
+        eventType: {
+          DataType: "String",
+          StringValue: eventType,
+        },
+      },
+    })
+    .promise();
+}
+
 function convertToOrderResponse(order: IOrder): IOrderResponse {
   const orderProducts: IOrderProductResponse[] = [];
-  order.products.forEach((product) => {
+  order.products?.forEach((product) => {
     orderProducts.push({
       code: product.code,
       price: product.price,
@@ -137,14 +274,14 @@ function convertToOrderResponse(order: IOrder): IOrderResponse {
     email: order.pk,
     id: order.sk!,
     createdAt: order.createdAt!,
-    products: orderProducts,
+    products: orderProducts.length ? orderProducts : undefined,
     billing: {
-      payment: order.billing.payment as IPaymentType,
+      payment: order.billing.payment as PaymentType,
       totalPrice: order.billing.totalPrice,
     },
     shipping: {
-      type: order.shipping.type as IShippingType,
-      carrier: order.shipping.carrier as ICarrierType,
+      type: order.shipping.type as ShippingType,
+      carrier: order.shipping.carrier as CarrierType,
     },
   };
 
@@ -164,6 +301,8 @@ function buildOrder(orderRequest: IOrderRequest, products: IProduct[]): IOrder {
   });
   const order: IOrder = {
     pk: orderRequest.email,
+    sk: uuid(),
+    createdAt: Date.now(),
     billing: {
       payment: orderRequest.payment,
       totalPrice,

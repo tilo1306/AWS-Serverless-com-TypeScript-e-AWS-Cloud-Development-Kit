@@ -1,15 +1,15 @@
-export enum IPaymentType {
+export enum PaymentType {
   CASH = "CASH",
   DEBIT_CARD = "DEBIT_CARD",
   CREDIT_CARD = "CREDIT_CARD",
 }
 
-export enum IShippingType {
+export enum ShippingType {
   ECONOMIC = "ECONOMIC",
   URGENT = "URGENT",
 }
 
-export enum ICarrierType {
+export enum CarrierType {
   CORREIOS = "CORREIOS",
   FEDEX = "FEDEX",
 }
@@ -17,10 +17,10 @@ export enum ICarrierType {
 export interface IOrderRequest {
   email: string;
   productIds: string[];
-  payment: IPaymentType;
+  payment: PaymentType;
   shipping: {
-    type: IShippingType;
-    carrier: ICarrierType;
+    type: ShippingType;
+    carrier: CarrierType;
   };
 }
 
@@ -34,12 +34,12 @@ export interface IOrderResponse {
   id: string;
   createdAt: number;
   billing: {
-    payment: IPaymentType;
+    payment: PaymentType;
     totalPrice: number;
   };
   shipping: {
-    type: IShippingType;
-    carrier: ICarrierType;
+    type: ShippingType;
+    carrier: CarrierType;
   };
-  products: IOrderProductResponse[];
+  products?: IOrderProductResponse[];
 }

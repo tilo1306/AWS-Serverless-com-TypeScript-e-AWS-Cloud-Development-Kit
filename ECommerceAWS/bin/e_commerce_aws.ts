@@ -2,8 +2,12 @@
 import "source-map-support/register";
 import * as cdk from "aws-cdk-lib";
 
+import { AuditEventBusStack } from "../lib/auditEventBus-stack";
+import { AuthLayersStack } from "../lib/authLayers-stack";
 import { ECommerceApiStack } from "../lib/ecommerceApi-stack";
 import { EventsDdbStack } from "../lib/eventsDdb-stack";
+import { InvoicesAppLayersStack } from "../lib/invoicesAppLayers-stack";
+import { InvoiceWSApiStack } from "../lib/invoiceWSApi-stack";
 import { OrdersAppStack } from "../lib/ordersApp-stack";
 import { OrdersAppLayersStack } from "../lib/ordersAppLayers-stack";
 import { ProductsAppStack } from "../lib/productsApp-stack";
@@ -18,16 +22,29 @@ const env: cdk.Environment = {
 
 const tags = {
   cost: "ECommerce",
-  team: "DougrilhosCode",
+  team: "OliveiraTeam",
 };
 
-const productAppLayersStack = new ProductsAppLayersStack(
+const auditEventBus = new AuditEventBusStack(app, "AuditEvents", {
+  tags: {
+    cost: "Audit",
+    team: "OliveiraTeam",
+  },
+  env,
+});
+
+const authLayersStack = new AuthLayersStack(app, "AuthLayers", {
+  tags,
+  env,
+});
+
+const productsAppLayersStack = new ProductsAppLayersStack(
   app,
   "ProductsAppLayers",
   {
     tags,
     env,
-  }
+  },
 );
 
 const eventsDdbStack = new EventsDdbStack(app, "EventsDdb", {
@@ -40,11 +57,11 @@ const productsAppStack = new ProductsAppStack(app, "ProductsApp", {
   tags,
   env,
 });
-
-productsAppStack.addDependency(productAppLayersStack);
+productsAppStack.addDependency(productsAppLayersStack);
+productsAppStack.addDependency(authLayersStack);
 productsAppStack.addDependency(eventsDdbStack);
 
-const ordesAppLayersStack = new OrdersAppLayersStack(app, "OrdersAppLayers", {
+const ordersAppLayersStack = new OrdersAppLayersStack(app, "OrdersAppLayers", {
   tags,
   env,
 });
@@ -53,18 +70,46 @@ const ordersAppStack = new OrdersAppStack(app, "OrdersApp", {
   tags,
   env,
   productsDdb: productsAppStack.productsDdb,
+  eventsDdb: eventsDdbStack.table,
+  auditBus: auditEventBus.bus,
 });
-
 ordersAppStack.addDependency(productsAppStack);
-ordersAppStack.addDependency(ordesAppLayersStack);
+ordersAppStack.addDependency(ordersAppLayersStack);
+ordersAppStack.addDependency(eventsDdbStack);
+ordersAppStack.addDependency(auditEventBus);
 
-const ecommerceApiStack = new ECommerceApiStack(app, "ECommerceApi", {
+const eCommerceApiStack = new ECommerceApiStack(app, "ECommerceApi", {
   productsFetchHandler: productsAppStack.productsFetchHandler,
   productsAdminHandler: productsAppStack.productsAdminHandler,
   ordersHandler: ordersAppStack.ordersHandler,
+  orderEventsFetchHandler: ordersAppStack.orderEventsFetchHandler,
   tags,
   env,
 });
+eCommerceApiStack.addDependency(productsAppStack);
+eCommerceApiStack.addDependency(ordersAppStack);
 
-ecommerceApiStack.addDependency(productsAppStack);
-ecommerceApiStack.addDependency(ordersAppStack);
+const invoicesAppLayersStack = new InvoicesAppLayersStack(
+  app,
+  "InvoicesAppLayer",
+  {
+    tags: {
+      cost: "InvoiceApp",
+      team: "SiecolaCode",
+    },
+    env,
+  },
+);
+
+const invoiceWSApiStack = new InvoiceWSApiStack(app, "InvoiceApi", {
+  eventsDdb: eventsDdbStack.table,
+  auditBus: auditEventBus.bus,
+  tags: {
+    cost: "InvoiceApp",
+    team: "SiecolaCode",
+  },
+  env,
+});
+invoiceWSApiStack.addDependency(invoicesAppLayersStack);
+invoiceWSApiStack.addDependency(eventsDdbStack);
+invoiceWSApiStack.addDependency(auditEventBus);
